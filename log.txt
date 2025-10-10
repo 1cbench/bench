@@ -1,0 +1,8 @@
+﻿Загрузка внешней обработки или отчета из XML.
+Корневой файл выгрузки: c:\Work\projects\sberdevices\dev\1cbench\bench\SampleProcessor.xml
+Целевой каталог или файл: c:\Work\projects\sberdevices\dev\1cbench\bench\SampleProcessor.epf
+
+Загрузка завершена. Суммарное время выполнения операции: 3749 миллисекунд.
+
+c:/Program Files/1cv8/8.3.27.1688/bin/1cv8.exe CONFIG /F "c:/Work/projects/sberdevices/dev/1cbench/base/" /N Admin /LoadExternalDataProcessorOrReportFromFiles"c:/Work/projects/sberdevices/dev/1cbench/bench/SampleProcessor.xml"c:/Work/projects/sberdevices/dev/1cbench/bench/SampleProcessor.epf /Out"c:\Work\projects\sberdevices\dev\1cbench\bench\log.txt"
+
