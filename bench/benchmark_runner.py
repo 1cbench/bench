@@ -49,7 +49,7 @@ class BenchmarkRunner:
         success_count = 0
 
         for i, row in tqdm(df.iterrows(), total=len(df)):
-            # if i != 4:
+            # if i != 8:
             #     continue
 
             sample = {
@@ -64,10 +64,6 @@ class BenchmarkRunner:
                 compiled_count += 1
             if result["success"]:
                 success_count += 1
-
-            # print(
-            #     f"Sample {i+1}: compiled={result['compiled']}, success={result['success']}, error='{result['error']}'"
-            # )
 
         # Calculate rates
         compile_rate = compiled_count / total_samples if total_samples > 0 else 0

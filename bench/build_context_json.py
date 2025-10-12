@@ -567,12 +567,12 @@ def main():
     # identifiers = ["РегистрСведений.ЦеныТоваров", "Справочник.Товары"]
     # identifiers = ["РегистрСведений.ЦеныТоваров"]
     # identifiers = ["РегистрНакопления.ТоварныеЗапасы"]
-    identifiers = ["РегистрНакопления.Взаиморасчеты"]
+    identifiers = ["Справочник.ИсходящиеПисьма"]
 
     result = builder.convert_identifiers_to_json(identifiers)
 
     # Save to the expected output file
-    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench\task_space\task_005_context.json"
+    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench-dev\task_space\task_005_context.json"
     builder.save_to_file(result, output_path)
 
     print(f"Context JSON saved to: {output_path}")
