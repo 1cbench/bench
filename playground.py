@@ -11,10 +11,11 @@ def main0():
 
 def main():
     filename = "data/stage_tasks2.csv"
+    filename = "data/output_sonnet-4-5_t05.csv"
     bench = BenchmarkRunner()
     bench.run(
         filename=filename,
-        dry_run=True,
+        dry_run=False,
     )
 
 

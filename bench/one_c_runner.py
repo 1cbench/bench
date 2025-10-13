@@ -5,8 +5,10 @@ from pathlib import Path
 
 from bench.constants import DESIGNER_PATH, CONFIG_LOG_PATH
 
-config_files_path = "c:/Work/projects/sberdevices/dev/1cbench/bench/SampleProcessor.xml"
-processing_path = "c:/Work/projects/sberdevices/dev/1cbench/bench/SampleProcessor.epf"
+BENCH_PATH = str(Path(__file__).parent.parent)
+config_files_path = f"{BENCH_PATH}/SampleProcessor.xml"
+processing_path = f"{BENCH_PATH}/SampleProcessor.epf"
+opener_path = f"{BENCH_PATH}/SampleOpener.epf"
 
 
 class OneCEngine:
@@ -56,7 +58,7 @@ class OneCEngine:
 
     def run_processing(self):
 
-        cmd_str = f'"{DESIGNER_PATH}" ENTERPRISE /F "{self.database_path}" /N {self.user_name} /Execute "{processing_path}" /DisableStartupMessages'
+        cmd_str = f'"{DESIGNER_PATH}" ENTERPRISE /F "{self.database_path}" /N {self.user_name} /Execute "{opener_path}" /DisableStartupMessages'
 
         # print(cmd_str)
         try:
