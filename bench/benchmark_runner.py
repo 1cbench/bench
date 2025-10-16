@@ -1,4 +1,6 @@
 from pathlib import Path
+import json
+import glob
 
 import pandas as pd
 
@@ -57,6 +59,77 @@ class BenchmarkRunner:
                 "validation_code": row["validation"],
                 "run_context": row["run_context"],
             }
+            result = self.run_sample(sample)
+
+            # Update counters based on result
+            if result["compiled"]:
+                compiled_count += 1
+            if result["success"]:
+                success_count += 1
+
+        # Calculate rates
+        compile_rate = compiled_count / total_samples if total_samples > 0 else 0
+        success_rate = success_count / total_samples if total_samples > 0 else 0
+
+        stats = {
+            "number_of_samples": total_samples,
+            "success_rate": success_rate,
+            "compile_rate": compile_rate,
+        }
+
+        print(f"\nFinal Statistics:")
+        print(f"Total samples: {stats['number_of_samples']}")
+        print(f"Compile rate: {stats['compile_rate']:.2%}")
+        print(f"Success rate: {stats['success_rate']:.2%}")
+
+        return stats
+
+    def run_tasks(
+        self,
+        tasks_dir: str,
+        dry_run: bool = False
+    ) -> dict:
+        """
+        Run tasks from individual JSON files (task_001.json, task_002.json, etc.)
+
+        Args:
+            tasks_dir: Directory containing task JSON files
+            dry_run: If True, uses 'gt_solution' field; otherwise uses 'output' field
+
+        Returns:
+            Dictionary with benchmark statistics
+        """
+        sample_field_name = "gt_solution" if dry_run else "output"
+
+        # Find all task JSON files
+        task_pattern = str(Path(tasks_dir) / "task_*.json")
+        task_files = sorted(glob.glob(task_pattern))
+
+        if not task_files:
+            print(f"No task files found in {tasks_dir}")
+            return {
+                "number_of_samples": 0,
+                "success_rate": 0,
+                "compile_rate": 0,
+            }
+
+        # Initialize counters
+        total_samples = len(task_files)
+        compiled_count = 0
+        success_count = 0
+
+        for task_file in tqdm(task_files, desc="Running tasks"):
+            # Load task from JSON
+            with open(task_file, "r", encoding="utf-8") as f:
+                task_data = json.load(f)
+
+            # Prepare sample
+            sample = {
+                "code": task_data[sample_field_name] if sample_field_name in task_data else task_data.get("gt_solution", ""),
+                "validation_code": task_data["validation"],
+                "run_context": task_data["run_context"],
+            }
+
             result = self.run_sample(sample)
 
             # Update counters based on result

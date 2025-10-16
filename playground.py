@@ -13,8 +13,8 @@ def main():
     filename = "data/stage_tasks2.csv"
     filename = "data/output_sonnet-4-5_t05.csv"
     bench = BenchmarkRunner()
-    bench.run(
-        filename=filename,
+    bench.run_tasks(
+        tasks_dir="data/",
         dry_run=False,
     )
 

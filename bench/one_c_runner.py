@@ -5,6 +5,16 @@ from pathlib import Path
 
 from bench.constants import DESIGNER_PATH, CONFIG_LOG_PATH
 
+# Windows-specific flags for hiding windows
+if sys.platform == 'win32':
+    CREATE_NO_WINDOW = 0x08000000
+    STARTUPINFO = subprocess.STARTUPINFO()
+    STARTUPINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    STARTUPINFO.wShowWindow = 0  # SW_HIDE
+else:
+    CREATE_NO_WINDOW = 0
+    STARTUPINFO = None
+
 BENCH_PATH = str(Path(__file__).parent.parent)
 config_files_path = f"{BENCH_PATH}/SampleProcessor.xml"
 processing_path = f"{BENCH_PATH}/SampleProcessor.epf"
@@ -29,15 +39,17 @@ class OneCEngine:
             print(f"Error: Configuration files directory not found at {config_files_path}")
             return False
 
-        cmd_str = f'"{DESIGNER_PATH}" CONFIG /F "{self.database_path}" /N {self.user_name} /LoadExternalDataProcessorOrReportFromFiles"{config_files_path}"{processing_path}"'
+        cmd_str = f'"{DESIGNER_PATH}" CONFIG /F "{self.database_path}" /N {self.user_name} /LoadExternalDataProcessorOrReportFromFiles"{config_files_path}"{processing_path}" /DisableStartupDialogs /DisableStartupMessages'
         # print()
         # print(cmd_str)
         try:
-            # Execute the command
+            # Execute the command with hidden window
             result = subprocess.run(
                 cmd_str,
                 shell=True,
-                timeout=20  # 5 minute timeout
+                timeout=20,  # 5 minute timeout
+                creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                startupinfo=STARTUPINFO if sys.platform == 'win32' else None
             )
 
             # Check result
@@ -58,17 +70,19 @@ class OneCEngine:
 
     def run_processing(self):
 
-        cmd_str = f'"{DESIGNER_PATH}" ENTERPRISE /F "{self.database_path}" /N {self.user_name} /Execute "{opener_path}" /DisableStartupMessages'
+        cmd_str = f'"{DESIGNER_PATH}" ENTERPRISE /F "{self.database_path}" /N {self.user_name} /Execute "{opener_path}" /DisableStartupMessages /DisableStartupDialogs'
 
         # print(cmd_str)
         try:
-            # Execute the command
+            # Execute the command with hidden window
             result = subprocess.run(
                 cmd_str,
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=120  # 5 minute timeout
+                timeout=120,  # 5 minute timeout
+                creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                startupinfo=STARTUPINFO if sys.platform == 'win32' else None
             )
 
             # Check result
