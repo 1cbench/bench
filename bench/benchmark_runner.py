@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import json
 import glob
@@ -6,35 +7,91 @@ import pandas as pd
 
 from tqdm import tqdm
 
-from bench.constants import PROCESSING_PATH, DATABASE_PATH, TASK_LOG_PATH
+from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH, PROCESSING_NAME
+from bench.one_c_parser import OneCParser
 from bench.one_c_runner import OneCEngine
+from bench.models import TaskModel
 
 
 class BenchmarkRunner:
 
     def __init__(self):
         self.engine = OneCEngine(DATABASE_PATH)
+        self.parser = OneCParser()
 
-    def run_sample(self, sample: dict) -> dict:
-        object_module_path = Path(PROCESSING_PATH) / "Ext" / "ObjectModule.bsl"
-        original_module_path = "data/ObjectModule.bsl"
-        with open(original_module_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-        existing_code = "\n".join(lines)
-
-        result_code = (
-            f"{existing_code}\n"
-            f"{sample['run_context']}\n\n"
-            f"{sample['code']}\n"
-            f"{sample['validation_code']}"
+    def prepare_processing_client(self, sample: TaskModel) -> None:
+        object_module_path = (
+            Path(PROCESSING_STORAGE_PATH) /
+            sample.task_id /
+            PROCESSING_NAME /
+            "Forms" /
+            "Форма" /
+            "Ext" /
+            "Form" /
+            "Module.bsl"
         )
+
+        with open(object_module_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            module_code = "\n".join(lines)
+
+        result_code = self.parser.patch_function(module_code, sample.func_name, sample.code)
 
         with open(object_module_path, "w", encoding="utf-8") as f:
             f.write(result_code)
 
-        self.engine.update_processing()
+    def prepare_processing_server(self, sample: TaskModel) -> None:
+        object_module_path = (
+            Path(PROCESSING_STORAGE_PATH) /
+            sample.task_id /
+            PROCESSING_NAME /
+            "Ext" /
+            "ObjectModule.bsl"
+        )
+
+        with open(object_module_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            module_code = "\n".join(lines)
+
+        result_code = self.parser.patch_function(module_code, sample.func_name, sample.code)
+
+        with open(object_module_path, "w", encoding="utf-8") as f:
+            f.write(result_code)
+
+    def run_sample(self, sample: TaskModel) -> dict:
+        processing_storage_dir = Path(PROCESSING_STORAGE_PATH) / sample.task_id
+        source_processing_path = Path(TASKS_PATH) / f"{sample.task_id}.epf"
+        patched_processing_path = Path(TASKS_PATH) / f"{sample.task_id}_patched.epf"
+        os.makedirs(processing_storage_dir, exist_ok=True)
+
+        # Delete log file if exists
+        if os.path.exists(TASK_LOG_PATH):
+            os.remove(TASK_LOG_PATH)
+
+        self.engine.store_processing(source_processing_path, processing_storage_dir)
+
+        if sample.env == "client":
+            self.prepare_processing_client(sample)
+        else:
+            self.prepare_processing_server(sample)
+
+        self.engine.update_processing(patched_processing_path, processing_storage_dir)
+        self.engine.run_processing(patched_processing_path)
+
+        return self.parse_logs()
+
+    def run_sample_old(self, sample: dict) -> dict:
+        if sample["env"] == "client":
+            self.prepare_processing_client(sample)
+        else:
+            self.prepare_processing_server(sample)
+
+        processing_storage_dir = Path(PROCESSING_STORAGE_PATH) / sample["task_id"]
+        os.makedirs(processing_storage_dir, exist_ok=True)
+
+        self.engine.update_processing(processing_storage_dir)
         self.engine.run_processing()
+
         return self.parse_logs()
 
     def run(
@@ -51,14 +108,23 @@ class BenchmarkRunner:
         success_count = 0
 
         for i, row in tqdm(df.iterrows(), total=len(df)):
-            # if i != 8:
+            # if i != 2:
             #     continue
 
-            sample = {
-                "code": row[sample_field_name],
-                "validation_code": row["validation"],
-                "run_context": row["run_context"],
-            }
+            code = row[sample_field_name]
+            code = self.parser.clean_code(code)  # Remove invisible characters
+            func_name = self.parser.extract_func_name(code)
+
+            if not func_name:
+                raise AttributeError(f"Function name could not be extracted from code in row {i}")
+
+            sample = TaskModel(
+                code=code,
+                task_id=row["task_id"],
+                env=row["env"],
+                func_name=func_name,
+                # run_context=row["run_context"],
+            )
             result = self.run_sample(sample)
 
             # Update counters based on result
@@ -118,17 +184,21 @@ class BenchmarkRunner:
         compiled_count = 0
         success_count = 0
 
-        for task_file in tqdm(task_files, desc="Running tasks"):
+        for i, task_file in tqdm(enumerate(task_files), total=len(task_files), desc="Running tasks"):
             # Load task from JSON
+            if i < 1:
+                continue
             with open(task_file, "r", encoding="utf-8") as f:
                 task_data = json.load(f)
 
             # Prepare sample
-            sample = {
-                "code": task_data[sample_field_name] if sample_field_name in task_data else task_data.get("gt_solution", ""),
-                "validation_code": task_data["validation"],
-                "run_context": task_data["run_context"],
-            }
+            sample = TaskModel(
+                code=task_data[sample_field_name] if sample_field_name in task_data else task_data.get("gt_solution", ""),
+                validation_code=task_data["validation"],
+                run_context=task_data["run_context"],
+                task_id=task_data.get("task_id", ""),
+                env=task_data.get("env", "server"),
+            )
 
             result = self.run_sample(sample)
 
