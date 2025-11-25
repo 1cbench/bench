@@ -110,8 +110,8 @@ class Parser:
         return self.peek().type in token_types
 
     def skip_newlines(self):
-        """Skip any newline tokens."""
-        while self.match(TokenType.NEWLINE):
+        """Skip any newline and comment tokens."""
+        while self.match(TokenType.NEWLINE, TokenType.COMMENT):
             self.advance()
 
     def synchronize(self):
@@ -214,14 +214,21 @@ class Parser:
                 self.current_annotation = None
 
             # Preprocessor directives (just skip for now)
-            elif self.match(TokenType.PREPROCESSOR_IF, TokenType.PREPROCESSOR_ENDIF):
+            elif self.match(TokenType.PREPROCESSOR_IF, TokenType.PREPROCESSOR_ELSE, TokenType.PREPROCESSOR_ENDIF):
                 self.advance()
 
             else:
+                # Try to parse as a statement (module-level code)
                 token = self.peek()
-                if token.type != TokenType.EOF:
+                if token.type == TokenType.EOF:
+                    break
+                try:
+                    stmt = self.parse_statement()
+                    if stmt:
+                        module.statements.append(stmt)
+                except ParserError:
+                    # Re-raise with better context
                     raise ParserError(f"Unexpected token at module level: {token.value}", token)
-                break
 
             self.skip_newlines()
 
@@ -327,13 +334,18 @@ class Parser:
 
         Grammar:
             parameters = parameter ("," parameter)*
-            parameter = identifier ("=" expression)?
+            parameter = ("Знач")? identifier ("=" expression)?
         """
         parameters = []
 
         # First parameter
+        by_val = False
+        if self.match(TokenType.KEYWORD_VAL):
+            self.advance()
+            by_val = True
+
         param_token = self.expect(TokenType.IDENTIFIER)
-        param = ParameterNode(name=param_token.value, line=param_token.line, column=param_token.column)
+        param = ParameterNode(name=param_token.value, line=param_token.line, column=param_token.column, by_val=by_val)
 
         # Default value
         if self.match(TokenType.OP_ASSIGN):
@@ -347,8 +359,13 @@ class Parser:
             self.advance()
             self.skip_newlines()
 
+            by_val = False
+            if self.match(TokenType.KEYWORD_VAL):
+                self.advance()
+                by_val = True
+
             param_token = self.expect(TokenType.IDENTIFIER)
-            param = ParameterNode(name=param_token.value, line=param_token.line, column=param_token.column)
+            param = ParameterNode(name=param_token.value, line=param_token.line, column=param_token.column, by_val=by_val)
 
             if self.match(TokenType.OP_ASSIGN):
                 self.advance()
@@ -425,6 +442,10 @@ class Parser:
             token = self.advance()
             self.expect(TokenType.DELIMITER_SEMICOLON)
             return ContinueNode(line=token.line, column=token.column)
+
+        # Raise exception
+        if self.match(TokenType.KEYWORD_RAISE):
+            return self.parse_raise_statement()
 
         # Await
         if self.match(TokenType.KEYWORD_AWAIT):
@@ -620,6 +641,24 @@ class Parser:
 
         return node
 
+    def parse_raise_statement(self) -> RaiseNode:
+        """
+        Parse raise exception statement.
+
+        Grammar:
+            raise_stmt = "ВызватьИсключение" expression? ";"
+        """
+        token = self.expect(TokenType.KEYWORD_RAISE)
+        node = RaiseNode(line=token.line, column=token.column)
+
+        # Expression is optional - if absent, re-raises current exception
+        if not self.match(TokenType.DELIMITER_SEMICOLON):
+            node.expression = self.parse_expression()
+
+        self.expect(TokenType.DELIMITER_SEMICOLON)
+
+        return node
+
     def parse_expression_or_assignment(self) -> AssignmentNode | ExpressionStatementNode:
         """
         Parse expression or assignment statement.
@@ -655,9 +694,15 @@ class Parser:
                 left = expr
                 while True:
                     op_token = self.peek()
-                    operator = op_token.value if op_token.type == TokenType.KEYWORD_AND or \
-                                                 op_token.type == TokenType.KEYWORD_OR or \
-                                                 op_token.type.name.startswith('OP_') else None
+                    # Use canonical form for keywords (И, ИЛИ), original value for operators
+                    if op_token.type == TokenType.KEYWORD_AND:
+                        operator = 'И'
+                    elif op_token.type == TokenType.KEYWORD_OR:
+                        operator = 'ИЛИ'
+                    elif op_token.type.name.startswith('OP_'):
+                        operator = op_token.value
+                    else:
+                        operator = None
 
                     if not operator or operator not in PRECEDENCE:
                         break
@@ -709,11 +754,20 @@ class Parser:
         left = self.parse_unary_expression()
 
         while True:
+            # Skip newlines - expressions can span multiple lines
+            self.skip_newlines()
+
             # Check if current token is an operator
             op_token = self.peek()
-            operator = op_token.value if op_token.type == TokenType.KEYWORD_AND or \
-                                         op_token.type == TokenType.KEYWORD_OR or \
-                                         op_token.type.name.startswith('OP_') else None
+            # Use canonical form for keywords (И, ИЛИ), original value for operators
+            if op_token.type == TokenType.KEYWORD_AND:
+                operator = 'И'
+            elif op_token.type == TokenType.KEYWORD_OR:
+                operator = 'ИЛИ'
+            elif op_token.type.name.startswith('OP_'):
+                operator = op_token.value
+            else:
+                operator = None
 
             if not operator or operator not in PRECEDENCE:
                 break
@@ -724,6 +778,7 @@ class Parser:
 
             # Consume operator
             self.advance()
+            self.skip_newlines()
 
             # Parse right side with higher precedence
             right = self.parse_binary_expression(precedence + 1)
@@ -831,9 +886,13 @@ class Parser:
         Parse primary expression (literals, identifiers, grouped expressions, etc.).
 
         Grammar:
-            primary = literal | identifier | "Новый" type_name "(" args ")" | "(" expression ")"
+            primary = literal | identifier | "Новый" type_name "(" args ")" | "(" expression ")" | "?" "(" args ")"
         """
         token = self.peek()
+
+        # Ternary operator ?(condition, true_value, false_value)
+        if self.match(TokenType.OP_TERNARY):
+            return self.parse_ternary_expression()
 
         # Parenthesized expression
         if self.match(TokenType.DELIMITER_LPAREN):
@@ -921,6 +980,28 @@ class Parser:
             )
 
         raise ParserError(f"Unexpected token in expression: {token.value}", token)
+
+    def parse_ternary_expression(self) -> TernaryNode:
+        """
+        Parse ternary conditional expression.
+
+        Grammar:
+            ternary = "?" "(" expression "," expression "," expression ")"
+        """
+        token = self.expect(TokenType.OP_TERNARY)
+        node = TernaryNode(line=token.line, column=token.column)
+
+        self.expect(TokenType.DELIMITER_LPAREN)
+        node.condition = self.parse_expression()
+        self.expect(TokenType.DELIMITER_COMMA)
+        self.skip_newlines()
+        node.true_value = self.parse_expression()
+        self.expect(TokenType.DELIMITER_COMMA)
+        self.skip_newlines()
+        node.false_value = self.parse_expression()
+        self.expect(TokenType.DELIMITER_RPAREN)
+
+        return node
 
     def parse_new_expression(self) -> NewNode:
         """

@@ -42,10 +42,12 @@ class ModuleNode(ASTNode):
         var_declarations: List of module-level variable declarations
         functions: List of function definitions
         procedures: List of procedure definitions
+        statements: List of module-level statements (executed at module load)
     """
     var_declarations: list[VarDeclarationNode] = field(default_factory=list)
     functions: list[FunctionNode] = field(default_factory=list)
     procedures: list[ProcedureNode] = field(default_factory=list)
+    statements: list[Statement] = field(default_factory=list)
 
 
 # ============================================================================
@@ -71,9 +73,11 @@ class ParameterNode(ASTNode):
     Attributes:
         name: Parameter name
         default_value: Optional default value expression
+        by_val: Whether parameter is passed by value (Знач)
     """
     name: str = ""
     default_value: Expression | None = None
+    by_val: bool = False
 
 
 # ============================================================================
@@ -241,6 +245,17 @@ class ContinueNode(ASTNode):
 
 
 @dataclass
+class RaiseNode(ASTNode):
+    """
+    Raise exception statement (ВызватьИсключение expression).
+
+    Attributes:
+        expression: Expression to raise
+    """
+    expression: Expression = None
+
+
+@dataclass
 class AwaitNode(ASTNode):
     """
     Await statement (Ждать expression).
@@ -282,6 +297,21 @@ class BinaryOpNode(ASTNode):
     left: Expression = None
     operator: str = ""
     right: Expression = None
+
+
+@dataclass
+class TernaryNode(ASTNode):
+    """
+    Ternary conditional expression ?(condition, true_value, false_value).
+
+    Attributes:
+        condition: Condition expression
+        true_value: Value if condition is true
+        false_value: Value if condition is false
+    """
+    condition: Expression = None
+    true_value: Expression = None
+    false_value: Expression = None
 
 
 @dataclass

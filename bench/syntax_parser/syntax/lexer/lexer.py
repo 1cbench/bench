@@ -40,6 +40,9 @@ class Lexer:
         Args:
             source_code: 1C source code string to tokenize
         """
+        # Strip BOM (Byte Order Mark) if present
+        if source_code.startswith('\ufeff'):
+            source_code = source_code[1:]
         self.source = source_code
         self.pos = 0
         self.line = 1
@@ -211,28 +214,37 @@ class Lexer:
         return Token(TokenType.ANNOTATION, value, start_line, start_column)
 
     def read_preprocessor(self) -> Token:
-        """Read a preprocessor directive starting with # (e.g., #Если, #КонецЕсли)."""
+        """Read a preprocessor directive starting with # (e.g., #Если, #КонецЕсли).
+
+        Reads the entire line as the preprocessor content since preprocessor
+        directives in 1C can contain conditions like:
+        #Если Сервер Или ТолстыйКлиентОбычноеПриложение Тогда
+        """
         start_line = self.line
         start_column = self.column
 
-        # Read the directive
+        # Read the entire preprocessor line (up to newline)
         value = ''
-        while self.current_char() is not None:
-            char = self.current_char()
+        while self.current_char() is not None and self.current_char() != '\n':
+            value += self.current_char()
+            self.advance()
 
-            if char.isalnum() or char == '#' or self._is_cyrillic(char):
-                value += char
-                self.advance()
-            else:
-                break
+        value = value.strip()
 
-        # Check for known preprocessor directives
-        if value == "#Если":
+        # Check for known preprocessor directives (case insensitive check)
+        value_lower = value.lower()
+        if value_lower.startswith("#если"):
             return Token(TokenType.PREPROCESSOR_IF, value, start_line, start_column)
-        elif value == "#КонецЕсли":
+        elif value_lower.startswith("#конецесли"):
+            return Token(TokenType.PREPROCESSOR_ENDIF, value, start_line, start_column)
+        elif value_lower.startswith("#иначе"):
+            return Token(TokenType.PREPROCESSOR_ELSE, value, start_line, start_column)
+        elif value_lower.startswith("#область"):
+            return Token(TokenType.PREPROCESSOR_IF, value, start_line, start_column)
+        elif value_lower.startswith("#конецобласти"):
             return Token(TokenType.PREPROCESSOR_ENDIF, value, start_line, start_column)
         else:
-            # Generic preprocessor directive (could extend this)
+            # Generic preprocessor directive
             return Token(TokenType.PREPROCESSOR_IF, value, start_line, start_column)
 
     def read_date(self) -> Token:

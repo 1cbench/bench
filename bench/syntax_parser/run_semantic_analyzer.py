@@ -126,8 +126,9 @@ The analyzer detects:
     )
 
     parser.add_argument(
-        'input_file',
-        help='Path to the 1C source file to analyze'
+        '--input_file',
+        help='Path to the 1C source file to analyze',
+        default="c:/Work/projects/sberdevices/dev/1cbench/bsp_conf/BusinessProcesses/Задание/Ext/ObjectModule.bsl"
     )
 
     parser.add_argument(

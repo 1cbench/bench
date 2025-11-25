@@ -14,8 +14,8 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-from syntax_parser.lexer import Lexer, LexerError
-from syntax_parser.parser import Parser, ParserError, ASTPrettyPrinter
+from bench.syntax_parser.syntax.lexer import Lexer, LexerError
+from bench.syntax_parser.syntax.parser import Parser, ParserError, ASTPrettyPrinter
 
 
 def print_separator(title: str = ""):

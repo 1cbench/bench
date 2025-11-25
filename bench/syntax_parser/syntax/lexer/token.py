@@ -33,9 +33,11 @@ class TokenType(Enum):
     KEYWORD_END_TRY = "КонецПопытки"
     KEYWORD_BREAK = "Прервать"
     KEYWORD_CONTINUE = "Продолжить"
+    KEYWORD_RAISE = "ВызватьИсключение"
 
     # Keywords - Variables and Objects
     KEYWORD_VAR = "Перем"
+    KEYWORD_VAL = "Знач"
     KEYWORD_NEW = "Новый"
     KEYWORD_RETURN = "Возврат"
     KEYWORD_EXPORT = "Экспорт"
@@ -70,6 +72,9 @@ class TokenType(Enum):
     OP_LESS_EQUAL = "<="
     OP_GREATER_EQUAL = ">="
 
+    # Operators - Ternary
+    OP_TERNARY = "?"
+
     # Delimiters
     DELIMITER_SEMICOLON = ";"
     DELIMITER_COMMA = ","
@@ -93,6 +98,7 @@ class TokenType(Enum):
 
     # Preprocessor
     PREPROCESSOR_IF = "#Если"
+    PREPROCESSOR_ELSE = "#Иначе"
     PREPROCESSOR_ENDIF = "#КонецЕсли"
 
     # Special
@@ -158,6 +164,7 @@ KEYWORDS = {
     "Пока": TokenType.KEYWORD_WHILE,
     "По": TokenType.KEYWORD_TO,
     "Перем": TokenType.KEYWORD_VAR,
+    "Знач": TokenType.KEYWORD_VAL,
     "Новый": TokenType.KEYWORD_NEW,
     "Возврат": TokenType.KEYWORD_RETURN,
     "Экспорт": TokenType.KEYWORD_EXPORT,
@@ -166,6 +173,7 @@ KEYWORDS = {
     "КонецПопытки": TokenType.KEYWORD_END_TRY,
     "Прервать": TokenType.KEYWORD_BREAK,
     "Продолжить": TokenType.KEYWORD_CONTINUE,
+    "ВызватьИсключение": TokenType.KEYWORD_RAISE,
     "Асинх": TokenType.KEYWORD_ASYNC,
     "Ждать": TokenType.KEYWORD_AWAIT,
     "И": TokenType.KEYWORD_AND,
@@ -194,6 +202,7 @@ OPERATORS = {
     ">": TokenType.OP_GREATER,
     "<=": TokenType.OP_LESS_EQUAL,
     ">=": TokenType.OP_GREATER_EQUAL,
+    "?": TokenType.OP_TERNARY,
 }
 
 

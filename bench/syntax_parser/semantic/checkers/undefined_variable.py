@@ -440,27 +440,30 @@ class UndefinedVariableChecker(ASTVisitor):
         # If target is a simple identifier, it might be a new assignment
         # If target is member access or index access, check the base object
 
+        # IMPORTANT: Check value FIRST before defining target variable
+        # This ensures RHS variables are checked before LHS is defined
+        if node.value:
+            self.visit(node.value)
+
         if isinstance(node.target, IdentifierNode):
-            # Check if variable is defined
-            # In 1C, you can assign to undefined variables (implicit declaration)
-            # but for this analyzer, we'll require explicit declaration
+            # In 1C, assignment implicitly declares the variable
+            # So we define it if not already defined
             symbol = self.symbol_table.lookup(node.target.name)
             if symbol is None:
-                self.errors.append(
-                    SemanticError(
-                        message=f"Assignment to undefined variable '{node.target.name}'",
+                # Implicitly define the variable
+                self.symbol_table.define(
+                    node.target.name,
+                    Symbol(
+                        name=node.target.name,
+                        kind='variable',
                         line=node.target.line,
                         column=node.target.column,
-                        error_type='undefined_variable'
+                        scope_level=self.symbol_table.get_current_scope_level()
                     )
                 )
         else:
             # For member access or index access, visit normally
             self.visit(node.target)
-
-        # Check the value expression
-        if node.value:
-            self.visit(node.value)
 
     def visit_BinaryOpNode(self, node: BinaryOpNode):
         """Visit binary operation - check both operands."""

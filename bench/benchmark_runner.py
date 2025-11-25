@@ -267,4 +267,3 @@ class BenchmarkRunner:
                 "success": False,
                 "error": f"Error reading log file: {str(e)}",
             }
-
