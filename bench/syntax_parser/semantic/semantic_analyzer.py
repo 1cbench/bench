@@ -5,7 +5,7 @@ This module provides the SemanticAnalyzer class which coordinates
 all semantic checks and returns a list of semantic errors.
 """
 
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 import sys
 import os
 
@@ -17,21 +17,33 @@ from .errors import SemanticError
 from .symbol_table import SymbolTable
 from .checkers.undefined_variable import VariableCollector, UndefinedVariableChecker
 
+if TYPE_CHECKING:
+    from .builtins.registry import BuiltinRegistry
+
 
 class SemanticAnalyzer:
     """
     Main semantic analyzer for 1C code.
 
     Performs semantic analysis on an AST to detect:
-    - Phase 1: Undefined variables
+    - Phase 1: Undefined variables and functions
+    - Phase 1.5: Unknown types in 'Новый' expressions
     - Phase 2: Invalid property access (future)
     - Phase 3: Additional checks (future)
     """
 
-    def __init__(self):
-        """Initialize the semantic analyzer."""
+    def __init__(self, builtins: Optional['BuiltinRegistry'] = None):
+        """
+        Initialize the semantic analyzer.
+
+        Args:
+            builtins: Optional BuiltinRegistry for 1C platform built-in functions and types.
+                     If provided, built-in calls like НСтр(), ЗначениеЗаполнено() won't
+                     be reported as undefined.
+        """
         self.errors: List[SemanticError] = []
         self.symbol_table: SymbolTable = None
+        self._builtins = builtins
 
     def analyze(self, ast: ASTNode) -> List[SemanticError]:
         """
@@ -80,7 +92,7 @@ class SemanticAnalyzer:
         Args:
             ast: Module AST node
         """
-        collector = VariableCollector()
+        collector = VariableCollector(builtins=self._builtins)
         collector.visit(ast)
         self.symbol_table = collector.symbol_table
 

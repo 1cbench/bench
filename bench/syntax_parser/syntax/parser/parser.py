@@ -276,8 +276,10 @@ class Parser:
 
         # Parameters
         self.expect(TokenType.DELIMITER_LPAREN)
+        self.skip_newlines()  # Allow parameters on next line
         if not self.match(TokenType.DELIMITER_RPAREN):
             node.parameters = self.parse_parameters()
+        self.skip_newlines()  # Allow closing paren on next line
         self.expect(TokenType.DELIMITER_RPAREN)
 
         # Export keyword
@@ -310,8 +312,10 @@ class Parser:
 
         # Parameters
         self.expect(TokenType.DELIMITER_LPAREN)
+        self.skip_newlines()  # Allow parameters on next line
         if not self.match(TokenType.DELIMITER_RPAREN):
             node.parameters = self.parse_parameters()
+        self.skip_newlines()  # Allow closing paren on next line
         self.expect(TokenType.DELIMITER_RPAREN)
 
         # Export keyword
@@ -849,11 +853,13 @@ class Parser:
             # Function call
             elif self.match(TokenType.DELIMITER_LPAREN):
                 token = self.advance()
+                self.skip_newlines()  # Allow arguments on next line
                 args = []
 
                 if not self.match(TokenType.DELIMITER_RPAREN):
                     args = self.parse_arguments()
 
+                self.skip_newlines()  # Allow closing paren on next line
                 self.expect(TokenType.DELIMITER_RPAREN)
 
                 expr = CallNode(
@@ -1022,10 +1028,12 @@ class Parser:
         # Optional constructor arguments
         if self.match(TokenType.DELIMITER_LPAREN):
             self.advance()
+            self.skip_newlines()  # Allow arguments on next line
 
             if not self.match(TokenType.DELIMITER_RPAREN):
                 node.arguments = self.parse_arguments()
 
+            self.skip_newlines()  # Allow closing paren on next line
             self.expect(TokenType.DELIMITER_RPAREN)
 
         return node
@@ -1035,17 +1043,31 @@ class Parser:
         Parse function call arguments.
 
         Grammar:
-            arguments = expression ("," expression)*
+            arguments = argument? ("," argument?)*
+            argument = expression
+
+        In 1C, arguments can be skipped using empty commas, e.g.:
+        Функция(Арг1,, Арг3) - the second argument is skipped (uses default).
         """
         args = []
 
-        # First argument
-        args.append(self.parse_expression())
+        # First argument (may be empty if starts with comma or rparen)
+        if self.match(TokenType.DELIMITER_COMMA, TokenType.DELIMITER_RPAREN):
+            # Empty first argument
+            token = self.peek()
+            args.append(EmptyExpressionNode(line=token.line, column=token.column))
+        else:
+            args.append(self.parse_expression())
 
         # Additional arguments
         while self.match(TokenType.DELIMITER_COMMA):
             self.advance()
             self.skip_newlines()
-            args.append(self.parse_expression())
+            # Check if this is an empty argument (comma followed by comma or rparen)
+            if self.match(TokenType.DELIMITER_COMMA, TokenType.DELIMITER_RPAREN):
+                token = self.peek()
+                args.append(EmptyExpressionNode(line=token.line, column=token.column))
+            else:
+                args.append(self.parse_expression())
 
         return args

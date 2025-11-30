@@ -403,6 +403,17 @@ class LiteralNode(ASTNode):
     literal_type: str = ""
 
 
+@dataclass
+class EmptyExpressionNode(ASTNode):
+    """
+    Empty expression (skipped argument in function call).
+
+    In 1C, you can skip arguments by using consecutive commas, e.g.:
+    Функция(Арг1,, Арг3) - the second argument is skipped (uses default).
+    """
+    pass
+
+
 # ============================================================================
 # AST Visitor Pattern
 # ============================================================================

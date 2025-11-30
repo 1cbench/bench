@@ -36,9 +36,14 @@ class VariableCollector(ASTVisitor):
     - Loop variables (Для, Для Каждого)
     """
 
-    def __init__(self):
-        """Initialize the collector with an empty symbol table."""
-        self.symbol_table = SymbolTable()
+    def __init__(self, builtins=None):
+        """
+        Initialize the collector with a symbol table.
+
+        Args:
+            builtins: Optional BuiltinRegistry to pre-populate with built-in functions and types
+        """
+        self.symbol_table = SymbolTable(builtins=builtins)
 
     def visit_ModuleNode(self, node: ModuleNode):
         """
@@ -585,7 +590,21 @@ class UndefinedVariableChecker(ASTVisitor):
             self.visit(node.expression)
 
     def visit_NewNode(self, node: NewNode):
-        """Visit new node - check constructor arguments."""
+        """Visit new node - check type name and constructor arguments."""
+        # Check if the type is defined (built-in type or user-defined)
+        if node.type_name:
+            symbol = self.symbol_table.lookup(node.type_name)
+            if symbol is None:
+                self.errors.append(
+                    SemanticError(
+                        message=f"Unknown type '{node.type_name}'",
+                        line=node.line,
+                        column=node.column,
+                        error_type='undefined_type'
+                    )
+                )
+
+        # Check constructor arguments
         for arg in node.arguments:
             self.visit(arg)
 

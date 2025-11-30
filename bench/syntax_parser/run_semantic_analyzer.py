@@ -10,6 +10,7 @@ Usage:
 Examples:
     python run_semantic_analyzer.py examples/sample.txt
     python run_semantic_analyzer.py examples/test_undefined.txt
+    python run_semantic_analyzer.py examples/sample.txt --no-builtins
 """
 
 import sys
@@ -27,15 +28,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 from syntax.lexer.lexer import Lexer
 from syntax.parser.parser import Parser
 from semantic.semantic_analyzer import SemanticAnalyzer
+from semantic.builtins.registry import BuiltinRegistry
 
 
-def analyze_file(file_path: str, verbose: bool = False):
+def analyze_file(file_path: str, verbose: bool = False, use_builtins: bool = True):
     """
     Analyze a 1C source file for semantic errors.
 
     Args:
         file_path: Path to the 1C source file
         verbose: If True, print additional information
+        use_builtins: If True, load 1C built-in functions and types
     """
     # Read the source code
     try:
@@ -78,13 +81,29 @@ def analyze_file(file_path: str, verbose: bool = False):
         print(f"Parser error: {e}")
         return 1
 
+    # Load builtins if requested
+    builtins = None
+    if use_builtins:
+        builtins = BuiltinRegistry()
+        cache_path = Path(__file__).parent / 'builtins_cache.json'
+        if cache_path.exists():
+            builtins.load_from_cache(cache_path)
+            if verbose:
+                print(f"Loaded {builtins.function_count} built-in functions and {builtins.type_count} built-in types")
+        else:
+            if verbose:
+                print(f"Warning: builtins_cache.json not found at {cache_path}")
+            builtins = None
+
     # Semantic analysis
     try:
-        analyzer = SemanticAnalyzer()
+        analyzer = SemanticAnalyzer(builtins=builtins)
         errors = analyzer.analyze(ast)
 
         if verbose:
             print("Semantic analysis complete")
+            if builtins:
+                print(f"Symbol table contains {analyzer.symbol_table.get_builtins_count()} built-in symbols")
             print("-" * 80)
 
     except Exception as e:
@@ -116,12 +135,18 @@ def main():
 Examples:
   %(prog)s examples/sample.txt
   %(prog)s examples/test_undefined.txt --verbose
+  %(prog)s examples/sample.txt --no-builtins
 
 The analyzer detects:
   - Undefined variable references
   - Undefined function calls
-  - Assignment to undefined variables
+  - Unknown types in 'Новый' expressions
   - And more...
+
+Built-in support:
+  By default, 1C platform built-in functions (НСтр, ЗначениеЗаполнено, Сообщить, etc.)
+  and types (ТаблицаЗначений, Структура, Массив, etc.) are recognized.
+  Use --no-builtins to disable this and report all undefined symbols.
         """
     )
 
@@ -137,10 +162,16 @@ The analyzer detects:
         help='Enable verbose output'
     )
 
+    parser.add_argument(
+        '--no-builtins',
+        action='store_true',
+        help='Disable built-in functions and types recognition'
+    )
+
     args = parser.parse_args()
 
     # Run analysis
-    exit_code = analyze_file(args.input_file, args.verbose)
+    exit_code = analyze_file(args.input_file, args.verbose, use_builtins=not args.no_builtins)
     sys.exit(exit_code)
 
 
