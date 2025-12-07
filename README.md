@@ -107,6 +107,53 @@ python run_bench.py my_tests.csv -o stats.json
 # Режим валидации (dry-run) — проверка без реального выполнения
 python run_bench.py my_tests.csv --dry-run
 ```
+### Генерация решений задач через LLM
+
+Скрипт `generate_for_bench.py` позволяет генерировать решения задач с помощью LLM-моделей.
+
+**Конфигурация в `.env`:**
+
+```bash
+# Тип провайдера: "anthropic" или "openrouter"
+PROVIDER_TYPE=anthropic
+
+# Название модели (используется в имени выходного файла)
+MODEL_NAME=sonnet-4-5
+
+# Идентификатор модели
+MODEL_ID=claude-sonnet-4-5-20250929
+
+# API-ключ (в зависимости от провайдера)
+ANTHROPIC_API_KEY=sk-ant-...
+# или
+OPENROUTER_API_KEY=sk-or-...
+```
+
+**Примеры идентификаторов моделей:**
+
+| Провайдер | MODEL_ID |
+|-----------|----------|
+| Anthropic | `claude-sonnet-4-5-20250929`, `claude-3-5-sonnet-20241022` |
+| OpenRouter | `anthropic/claude-3.5-sonnet`, `openai/gpt-4-turbo`, `google/gemini-pro` |
+
+**Запуск:**
+
+```bash
+python generate_for_bench.py
+```
+
+Скрипт читает задачи из файла `data/stage_tasks3.csv` и сохраняет результаты в `data/output_{MODEL_NAME}.csv`.
+
+**Формат входного CSV-файла:**
+
+| Колонка | Описание |
+|---------|----------|
+| `task` | Текст задачи |
+| `context` | Контекстная информация о структуре конфигурации 1С |
+
+**Формат выходного CSV-файла:**
+
+К исходным колонкам добавляется колонка `output` с сгенерированным кодом решения.
 
 ## Разработка
 
