@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class TaskModel(BaseModel):
-    code: str
+    code: str | None = None
     task_id: str
     env: str
     func_name: str | None = None
