@@ -170,6 +170,9 @@ python generate_for_bench.py
 4. Проверьте выполнение задачи локально
 5. Отправьте pull request или заполните [формочку](https://docs.google.com/forms/d/e/1FAIpQLScCBd7wKty4iYDh-88Ri5-awD_yh-iw47N12z7DT5e83SZJOg/viewform)
 
+## Ссылки
+> [Телеграм проекта](https://t.me/onec_code_bench)<br>
+> [Мой канал об 1С и LLM](https://t.me/llm_1c)
 ___
 >![Infostart](https://github.com/Bayselonarrend/TelegramEnterprise/raw/main/infostart.svg)
 >
