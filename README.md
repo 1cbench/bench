@@ -176,28 +176,4 @@ ___
 > [Наша статья](https://infostart.ru/1c/articles/2553227/) на Инфостарте
 > 
 >Другие статьи на Инфостарте:<br>
->- [Открытый пакет интеграций для популярных API: Telegram, VK, Viber, Twitter](https://infostart.ru/1c/articles/2016164/)<br>
->- [Библиотека для работы с Notion API (Open-source)](https://infostart.ru/1c/articles/2022254/)<br>
->- [Библиотека работы с Яндекс Диском: делаем простейший менеджер облака за 15 минут (Open-source)](https://infostart.ru/1c/articles/2038960/)<br>
->- [Открываем свою лавку на платформе VK Market](https://infostart.ru/public/2043994/)<br>
->- [Библиотека для работы с Google Calendar API (open-source)](https://infostart.ru/1c/articles/2049575/)<br>
->- [Telegram в режиме форума: делаем чаты комфортными](https://infostart.ru/1c/articles/2055811/)<br>
->- [Открытый пакет интеграция для OneScript](https://infostart.ru/1c/articles/2060307/)<br>
->- [Библиотека для работы с Google Drive API (open-source)](https://infostart.ru/1c/articles/2066469/)<br>
->- [OInt CLI - приложение Открытого пакета интеграций для командной строки](https://infostart.ru/1c/articles/2074205/)<br>
->- [Библиотека для работы со Slack (open-source)](https://infostart.ru/1c/articles/2099282/)<br>
->- [Библиотека для работы с Google Sheets (open-source)](https://infostart.ru/1c/articles/2102248/)<br>
->- [Библиотека для работы с Airtable (open-source)](https://infostart.ru/1c/articles/2106649/)<br>
->- [Библиотека для работы с Dropbox (open-source)](https://infostart.ru/1c/articles/2123857/)<br>
->- [Мастерская ОПИ: большой мануал по работе с Telegram](https://infostart.ru/1c/articles/2135517/)<br>
->- [Библиотека для работы с Bitrix24: живая лента, задачи, файлы и личные сообщения](https://infostart.ru/1c/articles/2148213/)<br>
->- [Работа с онлайн сервисами из консоли через OInt CLI](https://infostart.ru/1c/articles/2159665/)<br>
->- [Библиотека для работы с VKTeams (open-source)](https://infostart.ru/1c/articles/2170692/)<br>
->- [Управление товарами и остатками Ozon (open-source)](https://infostart.ru/1c/articles/2187012/)<br>
->- [Библиотека для работы со CDEK (open-source)](https://infostart.ru/1c/articles/2216121/)<br>
->- [Библиотека для работы с S3: AWS, MinIO и прочим (open-source)](https://infostart.ru/1c/articles/2244019/)<br>
->- [TCP-клиент в 1С (open-source)](https://infostart.ru/1c/articles/2272364/)<br>
->- [Коннектор SQLite для 1С (open-source)](https://infostart.ru/1c/articles/2276707/)<br>
->- [Мастерская ОПИ: мануал по работе с S3 в 1С](https://infostart.ru/1c/articles/2288171/)<br>
->- [Коннектор PostgreSQL для 1С и OneScript (open-source)](https://infostart.ru/1c/articles/2314338/)<br>
->- [Библиотека для работы с WhatsApp через GreenAPI (open-source)](https://infostart.ru/1c/articles/2327294/)<br>
+>- [Универсальный обмен документами и справочниками для 8.0 - 8.1](https://infostart.ru/1c/tools/15135/)<br>
