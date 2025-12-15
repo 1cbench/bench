@@ -173,7 +173,9 @@ python generate_for_bench.py
 ___
 >![Infostart](https://github.com/Bayselonarrend/TelegramEnterprise/raw/main/infostart.svg)
 >
->Статьи на Инфостарте:<br>
+> [Наша статья](https://infostart.ru/1c/articles/2553227/) на Инфостарте
+> 
+>Другие статьи на Инфостарте:<br>
 >- [Открытый пакет интеграций для популярных API: Telegram, VK, Viber, Twitter](https://infostart.ru/1c/articles/2016164/)<br>
 >- [Библиотека для работы с Notion API (Open-source)](https://infostart.ru/1c/articles/2022254/)<br>
 >- [Библиотека работы с Яндекс Диском: делаем простейший менеджер облака за 15 минут (Open-source)](https://infostart.ru/1c/articles/2038960/)<br>
