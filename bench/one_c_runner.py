@@ -3,7 +3,7 @@ import sys
 import os
 from pathlib import Path
 
-from bench.constants import DESIGNER_PATH, CONFIG_LOG_PATH
+from bench.constants import DESIGNER_PATH, CONFIG_LOG_PATH, OPENER_PATH
 
 # Windows-specific flags for hiding windows
 if sys.platform == 'win32':
@@ -16,9 +16,8 @@ else:
     STARTUPINFO = None
 
 BENCH_PATH = str(Path(__file__).parent.parent)
-config_files_path = f"{BENCH_PATH}/SampleProcessor.xml"
-processing_path = f"{BENCH_PATH}/SampleProcessor.epf"
-opener_path = f"{BENCH_PATH}/SampleOpener.epf"
+
+opener_path = OPENER_PATH or f"{BENCH_PATH}/SampleOpener.epf"
 
 
 class OneCEngine:
@@ -33,13 +32,43 @@ class OneCEngine:
         if not os.path.exists(database_path):
             raise ValueError(f"Error: Database not found at {database_path}")
 
-    def update_processing(self):
+    def _build_command(self, mode: str, extra_args: list[str], flags: list[str] = None) -> str:
+        """
+        Build command string for 1C Designer/Enterprise execution.
+        Args:
+            mode: 'CONFIG' or 'ENTERPRISE'
+            extra_args: list of additional arguments (e.g. ['/LoadExternalDataProcessorOrReportFromFiles', ...])
+            flags: list of flags (e.g. ['/DisableStartupDialogs', ...])
+        Returns:
+            str: command string
+        """
+        if flags is None:
+            flags = []
+        base_args = [
+            f'"{DESIGNER_PATH}"',
+            mode,
+            f'/F "{self.database_path}"',
+            f'/N {self.user_name}'
+        ]
+        cmd = ' '.join(base_args + extra_args + flags)
+        return cmd
 
-        if not os.path.exists(config_files_path):
-            print(f"Error: Configuration files directory not found at {config_files_path}")
-            return False
+    def update_processing(
+        self,
+        processing_path,
+        processing_storage_dir,
+    ):
+        storage_dir = Path(processing_storage_dir)
+        xml_files = [f for f in storage_dir.iterdir() if f.suffix == ".xml" and f.is_file()]
+        if len(xml_files) != 1:
+            raise AttributeError(
+                f"Expected exactly 1 .xml file in {processing_storage_dir}, found {len(xml_files)}: {xml_files}"
+            )
+        processing_storage_root = xml_files[0]
 
-        cmd_str = f'"{DESIGNER_PATH}" CONFIG /F "{self.database_path}" /N {self.user_name} /LoadExternalDataProcessorOrReportFromFiles"{config_files_path}"{processing_path}" /DisableStartupDialogs /DisableStartupMessages'
+        extra_args = [f'/LoadExternalDataProcessorOrReportFromFiles "{processing_storage_root}" "{processing_path}"']
+        flags = ['/DisableStartupDialogs', '/DisableStartupMessages']
+        cmd_str = self._build_command('CONFIG', extra_args, flags)
         # print()
         # print(cmd_str)
         try:
@@ -47,14 +76,13 @@ class OneCEngine:
             result = subprocess.run(
                 cmd_str,
                 shell=True,
-                timeout=20,  # 5 minute timeout
+                timeout=60,
                 creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
                 startupinfo=STARTUPINFO if sys.platform == 'win32' else None
             )
 
             # Check result
             if result.returncode == 0:
-                # print("✓ Configuration loaded successfully!")
                 if result.stdout:
                     print("Output:", result.stdout)
             else:
@@ -68,10 +96,52 @@ class OneCEngine:
             print("✗ Error: Operation timed out after 5 minutes")
             return False
 
-    def run_processing(self):
+    def store_processing(self, processing_path: str | Path, target_dir: str | Path):
 
-        cmd_str = f'"{DESIGNER_PATH}" ENTERPRISE /F "{self.database_path}" /N {self.user_name} /Execute "{opener_path}" /DisableStartupMessages /DisableStartupDialogs'
+        if not os.path.exists(processing_path):
+            raise AttributeError(f"Processing not found at {processing_path}")
 
+        extra_args = [f'/DumpExternalDataProcessorOrReportToFiles "{target_dir}" "{processing_path}"']
+        flags = ['/DisableStartupDialogs', '/DisableStartupMessages']
+        cmd_str = self._build_command('CONFIG', extra_args, flags)
+        # print()
+        # print(cmd_str)
+        try:
+            # Execute the command with hidden window
+            result = subprocess.run(
+                cmd_str,
+                shell=True,
+                timeout=20,
+                creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+                startupinfo=STARTUPINFO if sys.platform == 'win32' else None
+            )
+
+            # Check result
+            if result.returncode == 0:
+                if result.stdout:
+                    print("Output:", result.stdout)
+            else:
+                print(f"✗ Error loading configuration (exit code: {result.returncode})")
+                if result.stderr:
+                    print("Error output:", result.stderr)
+                if result.stdout:
+                    print("Standard output:", result.stdout)
+                return False
+        except subprocess.TimeoutExpired:
+            print("✗ Error: Operation timed out after 5 minutes")
+            return False
+
+    def run_processing(self, processing_path: str | Path, with_opener=True):
+
+        processing_basename = Path(processing_path).name
+        if with_opener:
+            extra_args = [f'/Execute "{opener_path}"', f'/C"{processing_basename}"']
+        else:
+            extra_args = [f'/Execute "{processing_path}"']
+
+        flags = ['/DisableStartupMessages', '/DisableStartupDialogs']
+        cmd_str = self._build_command('ENTERPRISE', extra_args, flags)
+        # print()
         # print(cmd_str)
         try:
             # Execute the command with hidden window
@@ -80,14 +150,13 @@ class OneCEngine:
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=120,  # 5 minute timeout
+                timeout=120,
                 creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
                 startupinfo=STARTUPINFO if sys.platform == 'win32' else None
             )
 
             # Check result
             if result.returncode == 0:
-                # print("✓ Configuration loaded successfully!")
                 if result.stdout:
                     print("Output:", result.stdout)
             else:
@@ -100,4 +169,3 @@ class OneCEngine:
         except subprocess.TimeoutExpired:
             print("✗ Error: Operation timed out after 5 minutes")
             return False
-

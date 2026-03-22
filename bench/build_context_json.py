@@ -384,6 +384,175 @@ class C1ContextBuilder:
 
         return result
 
+    def parse_document(self, xml_path: Path) -> Dict[str, Any]:
+        """
+        Parse Document XML metadata and convert to JSON structure.
+        """
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        document = root.find('.//{http://v8.1c.ru/8.3/MDClasses}Document')
+        if document is None:
+            return {}
+
+        properties = document.find('{http://v8.1c.ru/8.3/MDClasses}Properties')
+        if properties is None:
+            return {}
+
+        name_elem = properties.find('{http://v8.1c.ru/8.3/MDClasses}Name')
+        name = name_elem.text if name_elem is not None else ""
+
+        synonym_elem = properties.find('.//{http://v8.1c.ru/8.1/data/core}content')
+        synonym = synonym_elem.text if synonym_elem is not None else name
+
+        # Parse attributes
+        attributes = []
+        child_objects = document.find('{http://v8.1c.ru/8.3/MDClasses}ChildObjects')
+        if child_objects is not None:
+            for attribute in child_objects.findall('{http://v8.1c.ru/8.3/MDClasses}Attribute'):
+                attr_props = attribute.find('{http://v8.1c.ru/8.3/MDClasses}Properties')
+                if attr_props is not None:
+                    attr_name_elem = attr_props.find('{http://v8.1c.ru/8.3/MDClasses}Name')
+                    attr_name = attr_name_elem.text if attr_name_elem is not None else ""
+
+                    attr_synonym_elem = attr_props.find('.//{http://v8.1c.ru/8.1/data/core}content')
+                    attr_synonym = attr_synonym_elem.text if attr_synonym_elem is not None else attr_name
+
+                    type_elem = attr_props.find('.//{http://v8.1c.ru/8.1/data/core}Type')
+                    types = []
+                    if type_elem is not None:
+                        type_text = type_elem.text
+                        if type_text:
+                            if type_text.startswith('cfg:CatalogRef.'):
+                                catalog_name = type_text.replace('cfg:CatalogRef.', '')
+                                types.append({
+                                    "type": "Ref",
+                                    "id": f"Справочник.{catalog_name}"
+                                })
+                            elif type_text.startswith('cfg:EnumRef.'):
+                                enum_name = type_text.replace('cfg:EnumRef.', '')
+                                types.append({
+                                    "type": "Ref",
+                                    "id": f"Перечисление.{enum_name}"
+                                })
+                            elif type_text == 'xs:string':
+                                str_qual = attr_props.find('.//{http://v8.1c.ru/8.1/data/core}StringQualifiers')
+                                if str_qual is not None:
+                                    length_elem = str_qual.find('{http://v8.1c.ru/8.1/data/core}Length')
+                                    length = length_elem.text if length_elem is not None else "0"
+                                    types.append({
+                                        "type": "String",
+                                        "StringQualifiers": length
+                                    })
+                                else:
+                                    types.append({"type": "String"})
+                            elif type_text == 'xs:decimal':
+                                num_qual = attr_props.find('.//{http://v8.1c.ru/8.1/data/core}NumberQualifiers')
+                                if num_qual is not None:
+                                    digits_elem = num_qual.find('{http://v8.1c.ru/8.1/data/core}Digits')
+                                    fraction_elem = num_qual.find('{http://v8.1c.ru/8.1/data/core}FractionDigits')
+                                    digits = digits_elem.text if digits_elem is not None else "10"
+                                    fraction = fraction_elem.text if fraction_elem is not None else "0"
+                                    types.append({
+                                        "type": "Number",
+                                        "NumberQualifiers": f"{digits}.{fraction}"
+                                    })
+                                else:
+                                    types.append({"type": "Number"})
+                            elif type_text == 'xs:boolean':
+                                types.append({"type": "Boolean"})
+                            elif type_text == 'xs:dateTime':
+                                types.append({"type": "Date"})
+
+                    attributes.append({
+                        "id": attr_name,
+                        "name": attr_synonym,
+                        "types": types
+                    })
+
+        # Parse tabular sections
+        tabular_sections = []
+        if child_objects is not None:
+            for tab_section in child_objects.findall('{http://v8.1c.ru/8.3/MDClasses}TabularSection'):
+                tab_props = tab_section.find('{http://v8.1c.ru/8.3/MDClasses}Properties')
+                if tab_props is not None:
+                    tab_name_elem = tab_props.find('{http://v8.1c.ru/8.3/MDClasses}Name')
+                    tab_name = tab_name_elem.text if tab_name_elem is not None else ""
+
+                    tab_synonym_elem = tab_props.find('.//{http://v8.1c.ru/8.1/data/core}content')
+                    tab_synonym = tab_synonym_elem.text if tab_synonym_elem is not None else tab_name
+
+                    tab_attributes = []
+                    tab_child_objects = tab_section.find('{http://v8.1c.ru/8.3/MDClasses}ChildObjects')
+                    if tab_child_objects is not None:
+                        for tab_attr in tab_child_objects.findall('{http://v8.1c.ru/8.3/MDClasses}Attribute'):
+                            tab_attr_props = tab_attr.find('{http://v8.1c.ru/8.3/MDClasses}Properties')
+                            if tab_attr_props is not None:
+                                tab_attr_name_elem = tab_attr_props.find('{http://v8.1c.ru/8.3/MDClasses}Name')
+                                tab_attr_name = tab_attr_name_elem.text if tab_attr_name_elem is not None else ""
+
+                                tab_attr_synonym_elem = tab_attr_props.find('.//{http://v8.1c.ru/8.1/data/core}content')
+                                tab_attr_synonym = tab_attr_synonym_elem.text if tab_attr_synonym_elem is not None else tab_attr_name
+
+                                tab_type_elem = tab_attr_props.find('.//{http://v8.1c.ru/8.1/data/core}Type')
+                                tab_types = []
+                                if tab_type_elem is not None:
+                                    tab_type_text = tab_type_elem.text
+                                    if tab_type_text:
+                                        if tab_type_text.startswith('cfg:CatalogRef.'):
+                                            catalog_name = tab_type_text.replace('cfg:CatalogRef.', '')
+                                            tab_types.append({
+                                                "type": "Ref",
+                                                "id": f"Справочник.{catalog_name}"
+                                            })
+                                        elif tab_type_text == 'xs:string':
+                                            str_qual = tab_attr_props.find('.//{http://v8.1c.ru/8.1/data/core}StringQualifiers')
+                                            if str_qual is not None:
+                                                length_elem = str_qual.find('{http://v8.1c.ru/8.1/data/core}Length')
+                                                length = length_elem.text if length_elem is not None else "0"
+                                                tab_types.append({
+                                                    "type": "String",
+                                                    "StringQualifiers": length
+                                                })
+                                            else:
+                                                tab_types.append({"type": "String"})
+                                        elif tab_type_text == 'xs:decimal':
+                                            num_qual = tab_attr_props.find('.//{http://v8.1c.ru/8.1/data/core}NumberQualifiers')
+                                            if num_qual is not None:
+                                                digits_elem = num_qual.find('{http://v8.1c.ru/8.1/data/core}Digits')
+                                                fraction_elem = num_qual.find('{http://v8.1c.ru/8.1/data/core}FractionDigits')
+                                                digits = digits_elem.text if digits_elem is not None else "10"
+                                                fraction = fraction_elem.text if fraction_elem is not None else "0"
+                                                tab_types.append({
+                                                    "type": "Number",
+                                                    "NumberQualifiers": f"{digits}.{fraction}"
+                                                })
+                                            else:
+                                                tab_types.append({"type": "Number"})
+
+                                tab_attributes.append({
+                                    "id": tab_attr_name,
+                                    "name": tab_attr_synonym,
+                                    "types": tab_types
+                                })
+
+                    tabular_sections.append({
+                        "id": tab_name,
+                        "name": tab_synonym,
+                        "Attributes": tab_attributes
+                    })
+
+        result = {
+            "id": name,
+            "name": synonym,
+            "Attributes": attributes
+        }
+
+        if tabular_sections:
+            result["TabularSections"] = tabular_sections
+
+        return result
+
     def parse_accumulation_register(self, xml_path: Path) -> Dict[str, Any]:
         """
         Parse AccumulationRegister XML metadata and convert to JSON structure.
@@ -536,6 +705,15 @@ class C1ContextBuilder:
                             result["Catalogs"] = []
                         result["Catalogs"].append(catalog_data)
 
+            elif object_type == "Документ":
+                xml_path = self.get_metadata_file_path(object_type, object_name)
+                if xml_path:
+                    document_data = self.parse_document(xml_path)
+                    if document_data:
+                        if "Documents" not in result:
+                            result["Documents"] = []
+                        result["Documents"].append(document_data)
+
             elif object_type == "РегистрНакопления":
                 xml_path = self.get_metadata_file_path(object_type, object_name)
                 if xml_path:
@@ -565,14 +743,14 @@ def main():
 
     # Example: Convert the identifier from the task
     # identifiers = ["РегистрСведений.ЦеныТоваров", "Справочник.Товары"]
-    # identifiers = ["РегистрСведений.ЦеныТоваров"]
+    identifiers = ["РегистрСведений.ПериодыРемонтаСкладов"]
     # identifiers = ["РегистрНакопления.ТоварныеЗапасы"]
-    identifiers = ["Справочник.ИсходящиеПисьма"]
+    # identifiers = ["Справочник.ИсходящиеПисьма"]
 
     result = builder.convert_identifiers_to_json(identifiers)
 
     # Save to the expected output file
-    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench-dev\task_space\task_005_context.json"
+    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench-dev\task_space\task_019_context.json"
     builder.save_to_file(result, output_path)
 
     print(f"Context JSON saved to: {output_path}")
