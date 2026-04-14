@@ -5,7 +5,7 @@ import pandas as pd
 
 from tqdm import tqdm
 
-from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH
+from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH, PROCESSING_NAME
 from bench.one_c_parser import OneCParser
 from bench.one_c_runner import OneCEngine
 from bench.models import TaskModel
@@ -17,22 +17,11 @@ class BenchmarkRunner:
         self.engine = OneCEngine(DATABASE_PATH)
         self.parser = OneCParser()
 
-    def _detect_processing_name(self, task_id: str) -> str:
-        """Detect the processing name from the unpacked directory."""
-        storage_dir = Path(PROCESSING_STORAGE_PATH) / task_id
-        subdirs = [d for d in storage_dir.iterdir() if d.is_dir()]
-        if len(subdirs) != 1:
-            raise RuntimeError(
-                f"Expected exactly 1 subdirectory in {storage_dir}, found {len(subdirs)}: {subdirs}"
-            )
-        return subdirs[0].name
-
     def prepare_processing_client(self, sample: TaskModel) -> None:
-        processing_name = self._detect_processing_name(sample.task_id)
         object_module_path = (
             Path(PROCESSING_STORAGE_PATH) /
             sample.task_id /
-            processing_name /
+            PROCESSING_NAME /
             "Forms" /
             "Форма" /
             "Ext" /
@@ -50,11 +39,10 @@ class BenchmarkRunner:
             f.write(result_code)
 
     def prepare_processing_server(self, sample: TaskModel) -> None:
-        processing_name = self._detect_processing_name(sample.task_id)
         object_module_path = (
             Path(PROCESSING_STORAGE_PATH) /
             sample.task_id /
-            processing_name /
+            PROCESSING_NAME /
             "Ext" /
             "ObjectModule.bsl"
         )
@@ -115,9 +103,6 @@ class BenchmarkRunner:
 
         for i, row in tqdm(df.iterrows(), total=len(df)):
             task_id = row["task_id"]
-
-            # if task_id != "task_048":
-            #     continue
 
             code = None
             func_name = None
