@@ -1,6 +1,13 @@
 import argparse
-import json
+from pathlib import Path
 from bench.benchmark_runner import BenchmarkRunner
+
+
+def derive_output_path(source: str) -> str:
+    p = Path(source)
+    stem = p.stem
+    new_stem = "runreport_" + (stem[len("output_"):] if stem.startswith("output_") else stem)
+    return str(p.with_name(new_stem + ".json"))
 
 
 def main():
@@ -8,7 +15,7 @@ def main():
     parser.add_argument("source", help="Path to the source CSV file with tasks")
     parser.add_argument(
         "--output", "-o",
-        help="Path to JSON file for storing statistics",
+        help="Path to JSON file for storing statistics (auto-derived from source if omitted)",
         default=None
     )
     parser.add_argument(
@@ -18,10 +25,13 @@ def main():
     )
     args = parser.parse_args()
 
+    output_path = args.output or derive_output_path(args.source)
+
     bench = BenchmarkRunner()
     stats = bench.run(
         filename=args.source,
         dry_run=args.dry_run,
+        output_path=output_path,
     )
 
     # Print results to console
@@ -40,11 +50,7 @@ def main():
         for task_id in stats['success_failed_ids']:
             print(f"  - {task_id}")
 
-    # Save stats to JSON file if specified
-    if args.output:
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(stats, f, indent=2, ensure_ascii=False)
-        print(f"\nStatistics saved to: {args.output}")
+    print(f"\nStatistics saved to: {output_path}")
 
 
 if __name__ == "__main__":

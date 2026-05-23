@@ -743,14 +743,14 @@ def main():
 
     # Example: Convert the identifier from the task
     # identifiers = ["РегистрСведений.ЦеныТоваров", "Справочник.Товары"]
-    identifiers = ["РегистрСведений.ПериодыРемонтаСкладов"]
+    # identifiers = ["РегистрСведений.ПериодыРемонтаСкладов"]
     # identifiers = ["РегистрНакопления.ТоварныеЗапасы"]
-    # identifiers = ["Справочник.ИсходящиеПисьма"]
+    identifiers = ["Справочник.Товары"]
 
     result = builder.convert_identifiers_to_json(identifiers)
 
     # Save to the expected output file
-    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench-dev\task_space\task_019_context.json"
+    output_path = r"C:\Work\projects\sberdevices\dev\1cbench\bench\data\task_001_context.json"
     builder.save_to_file(result, output_path)
 
     print(f"Context JSON saved to: {output_path}")

@@ -24,6 +24,10 @@ class OneCParser:
         Returns:
             Cleaned code string
         """
+        # Handle non-string inputs (e.g., NaN from pandas)
+        if not isinstance(code, str):
+            return ''
+
         # List of invisible/unreadable characters to remove
         invisible_chars = [
             '\u200B',  # ZWSP - Zero Width Space

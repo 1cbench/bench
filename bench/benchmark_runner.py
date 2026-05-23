@@ -1,14 +1,62 @@
+import json
 import os
+import shutil
+import stat
+import time
 from pathlib import Path
 
 import pandas as pd
 
 from tqdm import tqdm
 
-from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH, PROCESSING_NAME
+from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH
 from bench.one_c_parser import OneCParser
 from bench.one_c_runner import OneCEngine
 from bench.models import TaskModel
+
+
+def _rmtree_force(path: Path) -> None:
+    """Remove a directory tree on Windows, handling read-only files and brief locks."""
+    def on_error(func, p, exc_info):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except FileNotFoundError:
+            pass
+
+    last_exc: Exception | None = None
+    for _ in range(3):
+        try:
+            shutil.rmtree(path, onerror=on_error)
+            return
+        except Exception as e:
+            last_exc = e
+            time.sleep(0.2)
+    if last_exc is not None:
+        raise last_exc
+
+
+def _clear_dir(path: Path) -> None:
+    """Empty a directory's contents while keeping the directory itself.
+
+    On Windows, removing the directory node itself can fail with WinError 32
+    when Explorer or another process has it open — clearing the contents
+    avoids that and is enough for our purpose (re-unpacking into the dir).
+    """
+    if not path.exists():
+        return
+    for child in path.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            _rmtree_force(child)
+        else:
+            try:
+                child.chmod(stat.S_IWRITE)
+            except OSError:
+                pass
+            try:
+                child.unlink()
+            except FileNotFoundError:
+                pass
 
 
 class BenchmarkRunner:
@@ -17,11 +65,24 @@ class BenchmarkRunner:
         self.engine = OneCEngine(DATABASE_PATH)
         self.parser = OneCParser()
 
-    def prepare_processing_client(self, sample: TaskModel) -> None:
+    @staticmethod
+    def _detect_processing_name(processing_storage_dir: Path) -> str:
+        xml_files = [
+            f for f in Path(processing_storage_dir).iterdir()
+            if f.suffix == ".xml" and f.is_file()
+        ]
+        if len(xml_files) != 1:
+            raise AttributeError(
+                f"Expected exactly 1 .xml file in {processing_storage_dir}, "
+                f"found {len(xml_files)}: {xml_files}"
+            )
+        return xml_files[0].stem
+
+    def prepare_processing_client(self, sample: TaskModel, processing_storage_dir: Path) -> None:
+        processing_name = self._detect_processing_name(processing_storage_dir)
         object_module_path = (
-            Path(PROCESSING_STORAGE_PATH) /
-            sample.task_id /
-            PROCESSING_NAME /
+            processing_storage_dir /
+            processing_name /
             "Forms" /
             "Форма" /
             "Ext" /
@@ -38,11 +99,11 @@ class BenchmarkRunner:
         with open(object_module_path, "w", encoding="utf-8") as f:
             f.write(result_code)
 
-    def prepare_processing_server(self, sample: TaskModel) -> None:
+    def prepare_processing_server(self, sample: TaskModel, processing_storage_dir: Path) -> None:
+        processing_name = self._detect_processing_name(processing_storage_dir)
         object_module_path = (
-            Path(PROCESSING_STORAGE_PATH) /
-            sample.task_id /
-            PROCESSING_NAME /
+            processing_storage_dir /
+            processing_name /
             "Ext" /
             "ObjectModule.bsl"
         )
@@ -60,7 +121,6 @@ class BenchmarkRunner:
         processing_storage_dir = Path(PROCESSING_STORAGE_PATH) / sample.task_id
         source_processing_path = Path(TASKS_PATH) / f"{sample.task_id}.epf"
         patched_processing_path = Path(TASKS_PATH) / f"{sample.task_id}_patched.epf"
-        os.makedirs(processing_storage_dir, exist_ok=True)
 
         # Delete log file if exists
         if os.path.exists(TASK_LOG_PATH):
@@ -69,12 +129,16 @@ class BenchmarkRunner:
         if dry_run:
             processing_to_run_path = source_processing_path
         else:
+            # Clean the target dir so the unpacked processing starts fresh
+            os.makedirs(processing_storage_dir, exist_ok=True)
+            _clear_dir(processing_storage_dir)
+
             self.engine.store_processing(source_processing_path, processing_storage_dir)
 
             if sample.env == "client":
-                self.prepare_processing_client(sample)
+                self.prepare_processing_client(sample, processing_storage_dir)
             else:
-                self.prepare_processing_server(sample)
+                self.prepare_processing_server(sample, processing_storage_dir)
 
             self.engine.update_processing(patched_processing_path, processing_storage_dir)
             processing_to_run_path = patched_processing_path
@@ -86,7 +150,8 @@ class BenchmarkRunner:
     def run(
         self,
         filename: str,
-        dry_run: bool = False
+        dry_run: bool = False,
+        output_path: str | None = None,
     ) -> dict:
         sample_field_name = "gt_solution" if dry_run else "output"
         df = pd.read_csv(filename)
@@ -100,10 +165,32 @@ class BenchmarkRunner:
         success_succeeded_ids = []
         success_failed_ids = []
         parse_errors = []
+        task_results = []
+
+        def build_stats() -> dict:
+            return {
+                "number_of_samples": total_samples,
+                "success_rate": success_count / total_samples if total_samples > 0 else 0,
+                "compile_rate": compiled_count / total_samples if total_samples > 0 else 0,
+                "compile_succeeded_ids": compile_succeeded_ids,
+                "compile_failed_ids": compile_failed_ids,
+                "success_succeeded_ids": success_succeeded_ids,
+                "success_failed_ids": success_failed_ids,
+                "parse_errors": parse_errors,
+                "task_results": task_results,
+            }
+
+        def save_report() -> None:
+            if not output_path:
+                return
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(build_stats(), f, indent=2, ensure_ascii=False)
 
         for i, row in tqdm(df.iterrows(), total=len(df)):
             task_id = row["task_id"]
 
+            # if task_id != "task_026":
+            #     continue
             code = None
             func_name = None
             if not dry_run:
@@ -112,13 +199,20 @@ class BenchmarkRunner:
                 func_name = self.parser.extract_func_name(code)
 
                 if not func_name:
+                    err_msg = "Function name could not be extracted from code"
                     parse_errors.append({
                         "row": i,
                         "task_id": task_id,
-                        "error": "Function name could not be extracted from code"
+                        "error": err_msg,
                     })
                     compile_failed_ids.append(task_id)
                     success_failed_ids.append(task_id)
+                    task_results.append({
+                        "task_id": task_id,
+                        "status": "error",
+                        "error": err_msg,
+                    })
+                    save_report()
                     continue
 
             try:
@@ -130,13 +224,20 @@ class BenchmarkRunner:
                 )
                 result = self.run_sample(sample, dry_run)
             except Exception as e:
+                err_msg = str(e)
                 parse_errors.append({
                     "row": i,
                     "task_id": task_id,
-                    "error": str(e)
+                    "error": err_msg,
                 })
                 compile_failed_ids.append(task_id)
                 success_failed_ids.append(task_id)
+                task_results.append({
+                    "task_id": task_id,
+                    "status": "error",
+                    "error": err_msg,
+                })
+                save_report()
                 continue
 
             # Update counters based on result
@@ -151,22 +252,20 @@ class BenchmarkRunner:
             else:
                 success_failed_ids.append(task_id)
 
-        # Calculate rates
-        compile_rate = compiled_count / total_samples if total_samples > 0 else 0
-        success_rate = success_count / total_samples if total_samples > 0 else 0
+            if result["success"]:
+                status, err_text = "success", ""
+            elif result["compiled"]:
+                status, err_text = "compiled", ""
+            else:
+                status, err_text = "error", result.get("error", "")
+            task_results.append({
+                "task_id": task_id,
+                "status": status,
+                "error": err_text,
+            })
+            save_report()
 
-        stats = {
-            "number_of_samples": total_samples,
-            "success_rate": success_rate,
-            "compile_rate": compile_rate,
-            "compile_succeeded_ids": compile_succeeded_ids,
-            "compile_failed_ids": compile_failed_ids,
-            "success_succeeded_ids": success_succeeded_ids,
-            "success_failed_ids": success_failed_ids,
-            "parse_errors": parse_errors,
-        }
-
-        return stats
+        return build_stats()
 
     def parse_logs(self) -> dict:
         """Parse the 1C benchmark log file and return compilation and execution status."""
