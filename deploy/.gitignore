@@ -1,0 +1,11 @@
+# Docker image tarballs are 3+ GB — never commit them.
+# Keep this dir as the canonical place to drop them, but track only
+# scripts/docs alongside.
+*.tar
+*.tar.gz
+*.tar.zst
+
+# build.* regenerates payload/MCP_Toolkit.epf from MCP_Toolkit_linux.epf
+# + the headless Module.bsl. The source pair IS tracked (next to this
+# file); the regenerated output isn't.
+payload/MCP_Toolkit.epf

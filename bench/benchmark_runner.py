@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import stat
 import time
@@ -9,10 +10,27 @@ import pandas as pd
 
 from tqdm import tqdm
 
-from bench.constants import DATABASE_PATH, TASK_LOG_PATH, PROCESSING_STORAGE_PATH, TASKS_PATH
-from bench.one_c_parser import OneCParser
-from bench.one_c_runner import OneCEngine
+from bench.constants import PROCESSING_STORAGE_PATH, TASKS_PATH
+from bench.mcp_runner import McpRunner
 from bench.models import TaskModel
+from bench.one_c_parser import OneCParser
+from bench.v8_packer import V8Packer
+
+MCP_URL = os.getenv("MCP_URL", "http://localhost:6003/mcp")
+
+# Some bench EPFs (e.g. task_012) declare `Функция ЗапуститьРешение()` without
+# Экспорт because the original SampleOpener flow invoked the exported wrapper
+# ЗапуститьРешениеОбертка which called it internally. The MCP-based runner
+# invokes ЗапуститьРешение directly from outside, so the entry point must be
+# Экспорт-visible. Force it on after the LLM patch.
+_ENTRY_POINT_EXPORT_RE = re.compile(
+    r"(Функция\s+ЗапуститьРешение\s*\([^)]*\))(?!\s*Экспорт)",
+    flags=re.IGNORECASE,
+)
+
+
+def _ensure_entry_point_exported(module_text: str) -> str:
+    return _ENTRY_POINT_EXPORT_RE.sub(r"\1 Экспорт", module_text, count=1)
 
 
 def _rmtree_force(path: Path) -> None:
@@ -61,8 +79,9 @@ def _clear_dir(path: Path) -> None:
 
 class BenchmarkRunner:
 
-    def __init__(self):
-        self.engine = OneCEngine(DATABASE_PATH)
+    def __init__(self, mcp_url: str = MCP_URL):
+        self.packer = V8Packer()
+        self.runner = McpRunner(url=mcp_url)
         self.parser = OneCParser()
 
     @staticmethod
@@ -113,6 +132,7 @@ class BenchmarkRunner:
             module_code = "\n".join(lines)
 
         result_code = self.parser.patch_function(module_code, sample.func_name, sample.code)
+        result_code = _ensure_entry_point_exported(result_code)
 
         with open(object_module_path, "w", encoding="utf-8") as f:
             f.write(result_code)
@@ -122,30 +142,30 @@ class BenchmarkRunner:
         source_processing_path = Path(TASKS_PATH) / f"{sample.task_id}.epf"
         patched_processing_path = Path(TASKS_PATH) / f"{sample.task_id}_patched.epf"
 
-        # Delete log file if exists
-        if os.path.exists(TASK_LOG_PATH):
-            os.remove(TASK_LOG_PATH)
-
         if dry_run:
             processing_to_run_path = source_processing_path
         else:
+            # V8Packer's clone-and-swap pack path only rewrites the ObjectModule
+            # entry; form-module patching is not supported.
+            if sample.env == "client":
+                raise NotImplementedError(
+                    "client-side patching not supported by V8Packer pack path"
+                )
+
             # Clean the target dir so the unpacked processing starts fresh
             os.makedirs(processing_storage_dir, exist_ok=True)
             _clear_dir(processing_storage_dir)
 
-            self.engine.store_processing(source_processing_path, processing_storage_dir)
-
-            if sample.env == "client":
-                self.prepare_processing_client(sample, processing_storage_dir)
-            else:
-                self.prepare_processing_server(sample, processing_storage_dir)
-
-            self.engine.update_processing(patched_processing_path, processing_storage_dir)
+            self.packer.unpack_epf(source_processing_path, processing_storage_dir)
+            self.prepare_processing_server(sample, processing_storage_dir)
+            self.packer.pack_epf(
+                source_processing_path,
+                processing_storage_dir,
+                patched_processing_path,
+            )
             processing_to_run_path = patched_processing_path
 
-        self.engine.run_processing(processing_path=processing_to_run_path)
-
-        return self.parse_logs()
+        return self.runner.run_epf(str(processing_to_run_path))
 
     def run(
         self,
@@ -266,46 +286,3 @@ class BenchmarkRunner:
             save_report()
 
         return build_stats()
-
-    def parse_logs(self) -> dict:
-        """Parse the 1C benchmark log file and return compilation and execution status."""
-        error_prefix = "Error:"
-        try:
-            with open(TASK_LOG_PATH, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-
-            # Check if compilation failed (log starts with "Error")
-            compiled = error_prefix not in content
-
-            # Check for success (Result: true)
-            success = "Result: true" in content
-
-            # Extract error message if present
-            error = ""
-            if error_prefix in content:
-                # Extract the error message (everything after "Error: ")
-                lines = content.split("\n")
-                if lines and error_prefix in lines[0]:
-                    error = (
-                        lines[0][len(error_prefix) + 1 :].strip()
-                    )  # Remove "Error: " prefix
-
-            return {
-                "compiled": compiled,
-                "success": success,
-                "error": error,
-            }
-
-        except FileNotFoundError:
-            return {
-                "compiled": False,
-                "success": False,
-                "error": "Log file not found",
-            }
-        except Exception as e:
-            print(f"Error reading log file: {str(e)}")
-            return {
-                "compiled": False,
-                "success": False,
-                "error": f"Error reading log file: {str(e)}",
-            }
