@@ -7,6 +7,8 @@ class LLMProvider(ABC):
     def __init__(self, system_prompt: str, model: str):
         self.system_prompt = system_prompt
         self.model = model
+        # Reasoning/thinking trace from the most recent generate() call (None if unavailable).
+        self.last_reasoning: str | list[str] | None = None
 
     @abstractmethod
     def generate(
@@ -28,6 +30,24 @@ class LLMProvider(ABC):
                 result.append(self._extract_choice_content(choice))
             return result
         return self._extract_choice_content(chat.choices[0])
+
+    def _extract_reasoning(self, chat) -> str | list[str] | None:
+        """Extract the reasoning/thinking trace from a chat completion, if present."""
+        if len(chat.choices) > 1:
+            return [self._extract_choice_reasoning(c) for c in chat.choices]
+        return self._extract_choice_reasoning(chat.choices[0])
+
+    @staticmethod
+    def _extract_choice_reasoning(choice) -> str | None:
+        """Extract the reasoning content from a single choice, if the model exposes it."""
+        message = getattr(choice, "message", None)
+        if message is not None:
+            # vLLM returns the trace in `reasoning`; some backends use `reasoning_content`.
+            return getattr(message, "reasoning", None) or getattr(message, "reasoning_content", None)
+        if isinstance(choice, dict):
+            message = choice.get("message", {})
+            return message.get("reasoning") or message.get("reasoning_content")
+        return None
 
     @staticmethod
     def _extract_choice_content(choice) -> str:
@@ -66,10 +86,12 @@ def create_provider(
     """
     from .anthropic import AnthropicProvider
     from .openrouter import OpenRouterProvider
+    from .vllm import VLLMProvider
 
     providers = {
         "anthropic": AnthropicProvider,
         "openrouter": OpenRouterProvider,
+        "vllm": VLLMProvider,
     }
 
     if provider_type not in providers:
