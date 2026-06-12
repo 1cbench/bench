@@ -51,12 +51,18 @@
 
 ## Установка
 
+Зависимости управляются через [uv](https://docs.astral.sh/uv/). Если `uv` ещё не установлен:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 0. Если у вас еще не становлена платформа 1С:Предприятие, установите ее согласно [официальной документации](https://online.1c.ru/catalog/free/34553751/).
 1. Скачайте [выгрузку демо-базы ](https://drive.google.com/file/d/1AI_cm0HUhB-o2BpK-TeVzXfFp0kWds0b/view?usp=sharing)и разверните ее локально.
 2. Клонируйте репозиторий
 3. Установите необходимые пакеты:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 4. Создайте файл `.env` на основе `.env.example`:
    ```bash
@@ -93,7 +99,7 @@
 ### Базовое использование
 
 ```bash
-python run_bench.py <source_file> [-o OUTPUT_FILE] [--dry-run]
+uv run run_bench.py <source_file> [-o OUTPUT_FILE] [--dry-run]
 ```
 
 **Аргументы:**
@@ -105,13 +111,13 @@ python run_bench.py <source_file> [-o OUTPUT_FILE] [--dry-run]
 
 ```bash
 # Базовый запуск
-python run_bench.py data/output_sonnet-4-5.csv
+uv run run_bench.py data/output_sonnet-4-5.csv
 
 # С сохранением результатов в JSON
-python run_bench.py data/output_sonnet-4-5.csv -o results.json
+uv run run_bench.py data/output_sonnet-4-5.csv -o results.json
 
 # Пробный запуск (выполняются эталонные решения) с выводом статистики
-python run_bench.py data/output_sonnet-4-5.csv --dry-run -o results.json
+uv run run_bench.py data/output_sonnet-4-5.csv --dry-run -o results.json
 ```
 
 **Вывод результатов:**
@@ -136,10 +142,10 @@ python run_bench.py data/output_sonnet-4-5.csv --dry-run -o results.json
 
 ```bash
 # Запуск бенчмарка с сохранением статистики
-python run_bench.py my_tests.csv -o stats.json
+uv run run_bench.py my_tests.csv -o stats.json
 
 # Режим валидации (dry-run) — проверка без реального выполнения
-python run_bench.py my_tests.csv --dry-run
+uv run run_bench.py my_tests.csv --dry-run
 ```
 ### Генерация решений задач через LLM
 
@@ -173,7 +179,7 @@ OPENROUTER_API_KEY=sk-or-...
 **Запуск:**
 
 ```bash
-python generate_for_bench.py
+uv run generate_for_bench.py
 ```
 
 Скрипт читает задачи из файла `data/stage_tasks3.csv` и сохраняет результаты в `data/output_{MODEL_NAME}.csv`.

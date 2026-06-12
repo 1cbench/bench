@@ -1,0 +1,13 @@
+[project]
+name = "onec-code-bench"
+version = "0.1.0"
+description = "Бенчмарк для оценки способности LLM-моделей писать код на 1С"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0.0,<3.0.0",
+    "tqdm>=4.60.0,<5.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "openai>=1.0.0,<2.0.0",
+]
